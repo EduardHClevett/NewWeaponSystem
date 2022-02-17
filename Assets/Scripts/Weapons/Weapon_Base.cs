@@ -10,9 +10,11 @@ public class Weapon_Base : MonoBehaviour
 
     public float currentMagAmmo, currentReserveAmmo, fireRate;
 
+    public bool isEquipped;
+
     public float fireTimer { get; protected set; }
 
-    public bool isFiring;
+    public bool isFiring, isReloading;
 
     public enum WeaponState
     {

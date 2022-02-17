@@ -57,6 +57,14 @@ public class @PlayerInputs : IInputActionCollection, IDisposable
                     ""expectedControlType"": ""Vector2"",
                     ""processors"": """",
                     ""interactions"": """"
+                },
+                {
+                    ""name"": ""SwapWeapons"",
+                    ""type"": ""Button"",
+                    ""id"": ""623a773c-216e-4722-beb8-fe6bfe83ade5"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """"
                 }
             ],
             ""bindings"": [
@@ -158,6 +166,17 @@ public class @PlayerInputs : IInputActionCollection, IDisposable
                     ""action"": ""Move"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""98e34d91-31a4-4b7e-9c18-9e0ec2514478"",
+                    ""path"": ""<Keyboard>/q"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""SwapWeapons"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -171,6 +190,7 @@ public class @PlayerInputs : IInputActionCollection, IDisposable
         m_InGame_Crouch = m_InGame.FindAction("Crouch", throwIfNotFound: true);
         m_InGame_Move = m_InGame.FindAction("Move", throwIfNotFound: true);
         m_InGame_Look = m_InGame.FindAction("Look", throwIfNotFound: true);
+        m_InGame_SwapWeapons = m_InGame.FindAction("SwapWeapons", throwIfNotFound: true);
     }
 
     public void Dispose()
@@ -225,6 +245,7 @@ public class @PlayerInputs : IInputActionCollection, IDisposable
     private readonly InputAction m_InGame_Crouch;
     private readonly InputAction m_InGame_Move;
     private readonly InputAction m_InGame_Look;
+    private readonly InputAction m_InGame_SwapWeapons;
     public struct InGameActions
     {
         private @PlayerInputs m_Wrapper;
@@ -234,6 +255,7 @@ public class @PlayerInputs : IInputActionCollection, IDisposable
         public InputAction @Crouch => m_Wrapper.m_InGame_Crouch;
         public InputAction @Move => m_Wrapper.m_InGame_Move;
         public InputAction @Look => m_Wrapper.m_InGame_Look;
+        public InputAction @SwapWeapons => m_Wrapper.m_InGame_SwapWeapons;
         public InputActionMap Get() { return m_Wrapper.m_InGame; }
         public void Enable() { Get().Enable(); }
         public void Disable() { Get().Disable(); }
@@ -258,6 +280,9 @@ public class @PlayerInputs : IInputActionCollection, IDisposable
                 @Look.started -= m_Wrapper.m_InGameActionsCallbackInterface.OnLook;
                 @Look.performed -= m_Wrapper.m_InGameActionsCallbackInterface.OnLook;
                 @Look.canceled -= m_Wrapper.m_InGameActionsCallbackInterface.OnLook;
+                @SwapWeapons.started -= m_Wrapper.m_InGameActionsCallbackInterface.OnSwapWeapons;
+                @SwapWeapons.performed -= m_Wrapper.m_InGameActionsCallbackInterface.OnSwapWeapons;
+                @SwapWeapons.canceled -= m_Wrapper.m_InGameActionsCallbackInterface.OnSwapWeapons;
             }
             m_Wrapper.m_InGameActionsCallbackInterface = instance;
             if (instance != null)
@@ -277,6 +302,9 @@ public class @PlayerInputs : IInputActionCollection, IDisposable
                 @Look.started += instance.OnLook;
                 @Look.performed += instance.OnLook;
                 @Look.canceled += instance.OnLook;
+                @SwapWeapons.started += instance.OnSwapWeapons;
+                @SwapWeapons.performed += instance.OnSwapWeapons;
+                @SwapWeapons.canceled += instance.OnSwapWeapons;
             }
         }
     }
@@ -288,5 +316,6 @@ public class @PlayerInputs : IInputActionCollection, IDisposable
         void OnCrouch(InputAction.CallbackContext context);
         void OnMove(InputAction.CallbackContext context);
         void OnLook(InputAction.CallbackContext context);
+        void OnSwapWeapons(InputAction.CallbackContext context);
     }
 }
