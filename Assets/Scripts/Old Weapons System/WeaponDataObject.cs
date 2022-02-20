@@ -7,5 +7,5 @@ public class WeaponDataObject : ScriptableObject
 {
     public string weaponName;
     public float damage, headshotMultiplier, fireRate, bulletVelocity, spread, recoil, reloadTime;
-    public int magCapacity, extraMags, startReserves, maxReserves, pellets;
+    public int magCapacity, extraMags, startReserves, maxReserves, burstCount;
 }

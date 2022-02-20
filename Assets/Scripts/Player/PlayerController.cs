@@ -95,6 +95,7 @@ public class PlayerController : MonoBehaviour
     private void Start()
     {
         playerScale = transform.localScale;
+        maxSpeed = walkMaxSpeed;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }

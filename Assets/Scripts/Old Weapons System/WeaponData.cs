@@ -4,7 +4,14 @@ using UnityEngine;
 
 public enum WeaponType { Pistol, SMG, AssaultRifle, SniperRifle };
 public enum ReloadType { Magazine, Insertion };
-public enum FireMode { FullAuto, SemiAuto };
+public enum FireMode { FullAuto, BurstFire, SemiAuto };
+
+[System.Serializable]
+public class PositionData
+{
+    public Vector3 position;
+    public Quaternion rotation;
+}
 
 public class WeaponData : MonoBehaviour
 {
@@ -15,30 +22,23 @@ public class WeaponData : MonoBehaviour
     public ReloadType reloadType;
     public FireMode fireMode;
 
-    public float range = 100f;
+    [Space, SerializeField] GameObject projectile;
+
+    [Space]
     
     public int currentReserve = 120;
 
     public int maxReserve;
-
     public int currentMag;
-    
-    public bool hasLastFire = false;
-
-
-    public int weaponCost = 1000;
-
-    [SerializeField]
     private int shotsFired;
 
     [Header("Animation Details")]
-    public Vector3 aimPos;
+    public PositionData aimPos;
     public float aimSpeed = 8f;
 
     [Header("External References")]
     public Camera cam;
-    public WeaponManagerOld weaponManager;
-    private Weapon weaponClass;
+    public WeaponManagerNew weaponManager;
     public PlayerInputs input;
 
     [Header("Internal References")]
@@ -46,19 +46,19 @@ public class WeaponData : MonoBehaviour
     public ParticleSystem muzzleFlash;
     public AudioSource gunshotSfx;
 
-
     private float fireTimer;
+
     [SerializeField]
     private bool isReloading = false;
     private bool isEnabled = true;
-    private Vector3 originalPos;
-    private Quaternion originalRot;
+    public PositionData originalPos { get; private set; }
 
-    [SerializeField]
     private float playerFOV;
     private float fovAdjust;
-    [SerializeField]
     private bool isAiming = false;
+    Vector3 firingDir;
+
+    bool isFiring = false;
 
     public bool IsEnabled
     {
@@ -70,10 +70,11 @@ public class WeaponData : MonoBehaviour
     {
         input = new PlayerInputs();
 
-        if (fireMode == FireMode.SemiAuto)
-            input.InGame.Shoot.started += _ => Fire();
-        else if (fireMode == FireMode.FullAuto)
-            input.InGame.Shoot.performed += _ => Fire();
+        originalPos = new PositionData();
+
+        input.InGame.Shoot.started += _ => isFiring = true;
+
+        input.InGame.Shoot.canceled += _ => isFiring = false;
 
         input.InGame.Reload.performed += _ => StartCoroutine(StartReload());
 
@@ -92,8 +93,7 @@ public class WeaponData : MonoBehaviour
 
     void Start()
     {
-        weaponManager = GetComponentInParent<WeaponManagerOld>();
-        weaponClass = (Weapon)System.Enum.Parse(typeof(Weapon), data.weaponName);
+        weaponManager = GetComponentInParent<WeaponManagerNew>();
 
         cam = Camera.main;
 
@@ -103,10 +103,10 @@ public class WeaponData : MonoBehaviour
 
         InitAmmo();
 
-        originalPos = transform.localPosition;
-        originalRot = transform.localRotation;
+        originalPos.position = transform.localPosition;
+        originalPos.rotation = transform.localRotation;
 
-        if (!weaponManager.HasWeapon(weaponClass))
+        if (!weaponManager.HasWeapon(this))
         {
             gameObject.SetActive(false);
         }
@@ -132,23 +132,57 @@ public class WeaponData : MonoBehaviour
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, fovAdjust, 0.5f);
         else
             cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, playerFOV, 0.5f);
-    }
 
-    void DrawHitRay()
-    {
-        Debug.DrawRay(muzzlePoint.position, CalculateSpread(data.spread, muzzlePoint), Color.green, 10f);
-    }
+        RaycastHit camRay;
 
-    Vector3 CalculateSpread(float inaccuracy, Transform trans)
-    {
-        if (isAiming) inaccuracy /= 2;
+        bool hit = Physics.Raycast(cam.transform.position, cam.transform.forward, out camRay);
 
-        return Vector3.Lerp(trans.TransformDirection(Vector3.forward * range), Random.onUnitSphere, inaccuracy);
+        if (hit)
+        {
+            if (camRay.collider.tag == "Player") return;
+
+
+            firingDir = (camRay.point - muzzlePoint.position).normalized;
+
+            Debug.DrawLine(muzzlePoint.position, camRay.point, Color.red);
+        }
+        else
+        {
+            Vector3 screenCenter;
+
+            screenCenter = cam.ScreenToWorldPoint(new Vector3(cam.pixelWidth / 2, cam.pixelHeight / 2, 1000));
+
+
+            firingDir = (screenCenter - muzzlePoint.position).normalized;
+        }
+
+        if(isFiring)
+        {
+            switch (fireMode)
+            {
+                case FireMode.FullAuto:
+                    {
+                        StartCoroutine(Fire());
+                        break;
+                    }
+                case FireMode.BurstFire:
+                    {
+                        StartCoroutine(Fire(data.burstCount));
+                        break;
+                    }
+                case FireMode.SemiAuto:
+                    {
+                        StartCoroutine(Fire());
+                        break;
+                    }
+            }
+        }
     }
 
     IEnumerator DisableFire(float time = 0.3f)
     {
         isEnabled = false;
+        isFiring = false;
 
         yield return new WaitForSeconds(time);
         isEnabled = true;
@@ -156,53 +190,59 @@ public class WeaponData : MonoBehaviour
         yield break;
     }
 
-    void Fire()
+    IEnumerator Fire(int repeats = 1)
     {
-        if (fireTimer <  1 / data.fireRate || !isEnabled || weaponManager.pauseFire || isReloading) return;
-
-        if (currentMag <= 0)
+        while(true)
         {
-            StartCoroutine(DisableFire());
+            if (fireTimer < 1 / data.fireRate || !isEnabled || weaponManager.pauseFire || isReloading) yield break;
 
-            shotsFired = data.magCapacity;
-            return;
-        }
-
-        RaycastHit hit;
-
-        for (int i = 0; i < data.pellets; i++)
-        {
-            if(gunshotSfx != null)
-                gunshotSfx.PlayOneShot(gunshotSfx.clip);
-
-            if (Physics.Raycast(cam.transform.position, cam.transform.forward, out hit, range))
+            for (int i = 0; i < repeats; i++)
             {
-                IEntity entity = hit.transform.GetComponent<IEntity>();
-
-                if (entity != null)
+                if (currentMag <= 0)
                 {
-                    entity.TakeDamage(data.damage);
+                    StartCoroutine(DisableFire());
+
+                    shotsFired = data.magCapacity;
+                    yield break;
                 }
+
+                if (gunshotSfx != null)
+                    gunshotSfx.PlayOneShot(gunshotSfx.clip);
+
+                GameObject bullet = Instantiate(projectile, muzzlePoint.position, Quaternion.identity);
+
+                bullet.GetComponent<Projectile>().SetStats(firingDir, data.damage, data.bulletVelocity);
+
+                currentMag--;
+
+                fireTimer = 0f;
+
+                shotsFired = data.magCapacity - currentMag;
+
+                if (muzzleFlash != null)
+                    muzzleFlash.Play();
+
             }
-        }
 
-        if(muzzleFlash != null)
-            muzzleFlash.Play();
-
-        currentMag--;
-
-        fireTimer = 0f;
+            if(fireMode != FireMode.FullAuto)
+            {
+                isFiring = false;
+                yield break;
+            }
+        }   
     }
 
     void StartADS()
     {
         isAiming = true;
-        transform.localPosition = aimPos;
+        transform.localPosition = aimPos.position;
+        transform.localRotation = aimPos.rotation;
     }
     void StopADS()
     {
         isAiming = false;
-        transform.localPosition = originalPos;
+        transform.localPosition = originalPos.position;
+        transform.localRotation = originalPos.rotation;
     }
 
     IEnumerator StartReload()
@@ -256,7 +296,8 @@ public class WeaponData : MonoBehaviour
     public void UnloadObj()
     {
         isReloading = false;
-        transform.localRotation = originalRot;
+        isFiring = false;
+        transform.localRotation = originalPos.rotation;
         isEnabled = false;
 
         gameObject.SetActive(false);
